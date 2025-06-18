@@ -1,22 +1,28 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'docker:dind'  // Docker-in-Docker for container operations
+            args '--privileged --network=host -v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
 
     stages {
-        stage('1. Clone Repository') {
+        stage('1. Clone & Verify Files') {
             steps {
-                // Clone your repo with ZAP configs
-                git(
-                    url: 'https://github.com/sunidhiagrawal18/zap-juiceshop.git',
-                    branch: 'main',
-                    credentialsId: 'github-credentials'
-                )
-                
-                // Verify all required files exist
                 sh '''
+                    echo "Cloning repository..."
+                    git clone https://github.com/sunidhiagrawal18/zap-juiceshop.git
+                    
                     echo "Verifying file structure:"
-                    ls -lR zap-juiceshop/
-                    [ -f zap-juiceshop/plans/owasp_juiceshop_plan_docker_with_auth.yaml ] || exit 1
-                    [ -f zap-juiceshop/scripts/GetToken_juiceshop_with_auth.js ] || exit 1
+                    cd zap-juiceshop
+                    ls -lR
+                    
+                    // Critical file checks
+                    [ -f plans/owasp_juiceshop_plan_docker_with_auth.yaml ] || { echo "Missing plan file!"; exit 1; }
+                    [ -f scripts/GetToken_juiceshop_with_auth.js ] || { echo "Missing auth script!"; exit 1; }
+                    
+                    mkdir -p reports
+                    chmod -R 777 .
                 '''
             }
         }
@@ -30,10 +36,8 @@ pipeline {
                         -p 3000:3000 \\
                         bkimminich/juice-shop
                     
-                    # Wait for JuiceShop to be ready
-                    while ! curl -s http://localhost:3000 >/dev/null; do
-                        sleep 5
-                    done
+                    echo "Waiting for JuiceShop..."
+                    until curl -s http://localhost:3000 >/dev/null; do sleep 5; done
                 '''
             }
         }
@@ -42,19 +46,15 @@ pipeline {
             steps {
                 sh '''
                     cd zap-juiceshop
-                    mkdir -p reports
-                    chmod -R 777 .
                     
-                    # Run ZAP with ALL files mounted
                     docker run --rm \\
                         --network="host" \\
-                        -v $(pwd)/plans:/zap/wrk/plans:ro \\
-                        -v $(pwd)/scripts:/zap/wrk/scripts:ro \\
-                        -v $(pwd)/openapi-specs:/zap/wrk/openapi-specs:ro \\
-                        -v $(pwd)/reports:/zap/wrk/reports:rw \\
+                        -v $(pwd)/plans:/zap/wrk/plans \\
+                        -v $(pwd)/scripts:/zap/wrk/scripts \\
+                        -v $(pwd)/openapi-specs:/zap/wrk/openapi-specs \\
+                        -v $(pwd)/reports:/zap/wrk/reports \\
                         ghcr.io/zaproxy/zaproxy:stable \\
-                        zap.sh -cmd \\
-                        -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                        zap.sh -cmd -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                 '''
             }
         }
@@ -62,14 +62,11 @@ pipeline {
 
     post {
         always {
-            // Save all artifacts
-            archiveArtifacts artifacts: 'zap-juiceshop/reports/*, zap-juiceshop/plans/*, zap-juiceshop/scripts/*'
+            archiveArtifacts artifacts: 'zap-juiceshop/reports/*'
             
-            // Cleanup
             sh '''
                 docker stop juiceshop || true
                 docker rm juiceshop || true
-                docker system prune -f
             '''
         }
     }
