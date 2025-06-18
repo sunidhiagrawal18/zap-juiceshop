@@ -56,7 +56,7 @@ jobs:
 - parameters:
     template: "risk-confidence-html"
     theme: "original"
-    reportDir: "/zap/wrk/reports/"
+    reportDir: "/zap/wrk/"
     reportFile: "juiceShopHtmlReport"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
@@ -93,7 +93,7 @@ jobs:
   type: "report"
 - parameters:
     template: "traditional-xml"
-    reportDir: "/zap/wrk/reports/"
+    reportDir: "/zap/wrk/"
     reportFile: "juiceShopXmlReport"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
