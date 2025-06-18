@@ -15,7 +15,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 git branch: 'main', 
-                   url: 'https://github.com/your-username/zap-juiceshop.git',
+                   url: 'https://github.com/sunidhiagrawal18/zap-juiceshop.git',
                    credentialsId: 'github-credentials'  // Create in Jenkins credentials
             }
         }
