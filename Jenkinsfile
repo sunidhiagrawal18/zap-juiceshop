@@ -1,25 +1,29 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:dind'  // Docker-in-Docker for container operations
-            args '--privileged --network=host -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     stages {
         stage('1. Clone & Verify Files') {
             steps {
+                git branch: 'main', 
+                   url: 'https://github.com/sunidhiagrawal18/zap-juiceshop.git',
+                   credentialsId: 'github-credentials'
+
                 sh '''
-                    echo "Cloning repository..."
-                    git clone https://github.com/sunidhiagrawal18/zap-juiceshop.git
-                    
-                    echo "Verifying file structure:"
+                    echo "Verifying repository structure..."
                     cd zap-juiceshop
                     ls -lR
                     
-                    // Critical file checks
-                    [ -f plans/owasp_juiceshop_plan_docker_with_auth.yaml ] || { echo "Missing plan file!"; exit 1; }
-                    [ -f scripts/GetToken_juiceshop_with_auth.js ] || { echo "Missing auth script!"; exit 1; }
+                    # Mandatory file checks
+                    [ -f plans/owasp_juiceshop_plan_docker_with_auth.yaml ] || { echo "ERROR: Missing plan file"; exit 1; }
+                    [ -f scripts/GetToken_juiceshop_with_auth.js ] || { echo "ERROR: Missing auth script"; exit 1; }
+                    
+                    # Optional OpenAPI spec check
+                    if [ -d "openapi-specs/" ]; then
+                        echo "OpenAPI specs found"
+                        [ -f openapi-specs/swagger-juiceshop_demo.json ] || echo "WARNING: Missing OpenAPI spec"
+                    else
+                        echo "WARNING: openapi-specs/ directory not found"
+                    fi
                     
                     mkdir -p reports
                     chmod -R 777 .
@@ -27,47 +31,42 @@ pipeline {
             }
         }
 
-        stage('2. Start JuiceShop') {
+        stage('2. Run ZAP Scan') {
             steps {
-                sh '''
-                    docker run -d \\
-                        --name juiceshop \\
-                        --network host \\
-                        -p 3000:3000 \\
-                        bkimminich/juice-shop
-                    
-                    echo "Waiting for JuiceShop..."
-                    until curl -s http://localhost:3000 >/dev/null; do sleep 5; done
-                '''
-            }
-        }
-
-        stage('3. Run ZAP Scan') {
-            steps {
-                sh '''
-                    cd zap-juiceshop
-                    
-                    docker run --rm \\
-                        --network="host" \\
-                        -v $(pwd)/plans:/zap/wrk/plans \\
-                        -v $(pwd)/scripts:/zap/wrk/scripts \\
-                        -v $(pwd)/openapi-specs:/zap/wrk/openapi-specs \\
-                        -v $(pwd)/reports:/zap/wrk/reports \\
-                        ghcr.io/zaproxy/zaproxy:stable \\
-                        zap.sh -cmd -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
-                '''
+                dir('zap-juiceshop') {
+                    sh '''
+                        echo "Starting ZAP scan with full directory mounts..."
+                        docker run --rm \
+                            -v $(pwd)/plans:/zap/wrk/plans:ro \
+                            -v $(pwd)/scripts:/zap/wrk/scripts:ro \
+                            -v $(pwd)/openapi-specs:/zap/wrk/openapi-specs:ro \
+                            -v $(pwd)/reports:/zap/wrk/reports:rw \
+                            -e JAVA_OPTS="-Xmx2g" \
+                            ghcr.io/zaproxy/zaproxy:stable \
+                            zap.sh -cmd \
+                            -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                        
+                        echo "Scan completed. Reports generated:"
+                        ls -l reports/
+                    '''
+                }
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: 'zap-juiceshop/reports/*'
+            dir('zap-juiceshop/reports') {
+                archiveArtifacts artifacts: '*.html, *.xml, *.json'
+                publishHTML target: [
+                    allowMissing: true,
+                    reportDir: '.',
+                    reportFiles: 'juiceShopHtmlReport.html',
+                    reportName: 'ZAP Security Report'
+                ]
+            }
             
-            sh '''
-                docker stop juiceshop || true
-                docker rm juiceshop || true
-            '''
+            sh 'docker system prune -f || true'
         }
     }
 }
