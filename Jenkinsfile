@@ -36,7 +36,7 @@ pipeline {
                           -v ${WORKSPACE}:/zap/wrk:rw \
                           -t ${ZAP_IMAGE} \
                           -daemon \
-                          zap.sh -cmd -port 9090 -config api.disablekey=true \
+                          zap.sh -port 9090 -config api.disablekey=true \
                           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
                 }
