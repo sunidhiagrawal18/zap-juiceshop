@@ -36,13 +36,16 @@ pipeline {
                     sh 'docker rm -f zap-scan || true'
                     
                     sh """
-                      docker run --rm --user ${uid}:${gid} --name zap-scan --network=host \
-                        -v ${WORKSPACE}:/zap/wrk:rw \
-                        -t ${ZAP_IMAGE} \
-                        zap.sh -dir /zap/wrk/.zap_home \
-                               -cmd -port 9090 -config api.disablekey=true \
-                               -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
-                    """
+                          docker run --rm --user ${uid}:${gid} --name zap-scan --network=host \
+                            -v ${WORKSPACE}:/zap/wrk:rw \
+                            -t ${ZAP_IMAGE} \
+                            zap.sh -dir /zap/wrk/.zap_home \
+                                   -addonupdate \
+                                   -config api.disablekey=true \
+                                   -port 9090 \
+                                   -J-Djava.util.prefs.userRoot=/zap/wrk/.java_prefs \
+                                   -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                        """
                 }
             }
         } 
