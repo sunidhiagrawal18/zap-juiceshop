@@ -38,6 +38,7 @@ pipeline {
                     sh """
                       docker run --rm --user ${uid}:${gid} \
                         --name zap-scan --network=host \
+                        -e HOME=/zap/wrk \
                         -v ${WORKSPACE}:/zap/wrk:rw \
                         -t ${ZAP_IMAGE} \
                         zap.sh -cmd -port 9090 -config api.disablekey=true \
