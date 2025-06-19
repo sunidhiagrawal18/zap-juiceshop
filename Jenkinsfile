@@ -34,21 +34,21 @@ pipeline {
             }
         }
 
-        stage('Debug ZAP Volume') {
-             steps {
+        stage('Debug: Check Container Permissions') {
+            steps {
                 script {
-                    // See what's inside the volume
-                    sh 'docker exec zap-scan ls -la /zap/wrk/'
+                    // List contents of /zap/ and /zap/wrk
+                    sh 'docker exec zap-scan ls -la /zap/ || echo "Failed to list /zap/"'
+                    sh 'docker exec zap-scan ls -la /zap/wrk || echo "Failed to list /zap/wrk"'
         
-                    // Optional: read the report
-                    sh 'docker exec zap-scan cat /zap/wrk/report.html || echo "No report.html"'
+                    // Try creating a file in /zap/wrk
+                    sh 'docker exec zap-scan touch /zap/wrk/test.txt || echo "Failed to create test file"'
         
-                    // Optional: check docker logs (if allowed)
-                    sh 'sudo journalctl -u docker | grep "volume" || echo "No access to journalctl logs"'
+                    // Confirm file was created
+                    sh 'docker exec zap-scan ls -la /zap/wrk/test.txt || echo "test.txt not found"'
                 }
             }
 }
-
 
         stage('Archive Results') {
             steps {
