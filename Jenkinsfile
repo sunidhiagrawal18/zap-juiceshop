@@ -23,7 +23,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                        docker run --rm --network="host" \
+                        docker run -d --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
                           -t ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
@@ -33,21 +33,37 @@ pipeline {
             }
         }
 
-        stage('Archive Results') {
-    steps {
-        // Archive both reports if needed
-        archiveArtifacts artifacts: 'report.html, juiceShopXmlReport.xml', allowEmptyArchive: false
-
-        publishHTML target: [
-            reportDir: '.',
-            reportFiles: 'report.html',
-            reportName: 'ZAP Report',
-            allowMissing: false,
-            alwaysLinkToLastBuild: true,
-            keepAll: true
-        ]
-    }
+        stage('Debug ZAP Volume') {
+             steps {
+                script {
+                    // See what's inside the volume
+                    sh 'docker exec zap-scan ls -la /zap/wrk/'
+        
+                    // Optional: read the report
+                    sh 'docker exec zap-scan cat /zap/wrk/report.html || echo "No report.html"'
+        
+                    // Optional: check docker logs (if allowed)
+                    sh 'sudo journalctl -u docker | grep "volume" || echo "No access to journalctl logs"'
+                }
+            }
 }
+
+
+        stage('Archive Results') {
+            steps {
+                // Archive both reports if needed
+                archiveArtifacts artifacts: 'report.html, juiceShopXmlReport.xml', allowEmptyArchive: false
+        
+                publishHTML target: [
+                    reportDir: '.',
+                    reportFiles: 'report.html',
+                    reportName: 'ZAP Report',
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true
+                ]
+            }
+        }
     
 }
 
