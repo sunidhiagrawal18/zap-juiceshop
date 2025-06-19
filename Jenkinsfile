@@ -18,6 +18,18 @@ pipeline {
                 }
             }
         }
+
+        stage('Debug Workspace Permissions') {
+            steps {
+                sh '''
+                    chmod -R 777 ${WORKSPACE} || true
+                    echo "Workspace ownership:"
+                    ls -ld ${WORKSPACE}
+                    echo "Workspace contents:"
+                    ls -la ${WORKSPACE}
+                '''
+            }
+        }
         
         stage('Run ZAP Scan') {
             steps {
@@ -25,7 +37,7 @@ pipeline {
                     sh """
                         docker rm -f zap-scan || true
                         docker run --name zap-scan --network="host" \
-                          -v ${WORKSPACE}:/zap/wrk:rw \
+                        --user 0 -v ${WORKSPACE}:/zap/wrk:rw \
                           -i ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
                           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
