@@ -43,7 +43,7 @@ pipeline {
                     sh """
                         docker rm -f zap-scan || true
                         docker run --name zap-scan --network="host" \
-                        --user 0 -v ${WORKSPACE}:/zap/wrk:rw \
+                          -v ${WORKSPACE}:/zap/wrk:rw \
                           -i ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
                           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
