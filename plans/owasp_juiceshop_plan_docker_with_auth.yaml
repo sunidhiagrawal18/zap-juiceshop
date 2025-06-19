@@ -104,7 +104,7 @@ jobs:
   parameters:
     template: "traditional-xml"
     reportDir: "/zap/wrk/"
-    reportFile: "juiceShopXmlReport"
+    reportFile: "juiceShopXmlReport.xml"  # ✅ Add extension!
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
     displayReport: false
