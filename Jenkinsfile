@@ -19,24 +19,27 @@ pipeline {
             }
         }
 
-        stage('Debug Workspace Permissions') {
-            steps {
-                sh '''
-                    chmod -R 777 ${WORKSPACE} || true
-                '''
-            }
-        }
+        // stage('Debug Workspace Permissions') {
+        //     steps {
+        //         sh '''
+        //             chmod -R 777 ${WORKSPACE} || true
+        //         '''
+        //     }
+        // }
         
         stage('Run ZAP Scan') {
             steps {
                 script {
+                    def uid = sh(script: 'id -u', returnStdout: true).trim()
+                    def gid = sh(script: 'id -g', returnStdout: true).trim()
+                    
                     sh """
-                        docker rm -f zap-scan || true
-                        docker run --name zap-scan --network="host" \
-                          -v ${WORKSPACE}:/zap/wrk:rw \
-                          -t ${ZAP_IMAGE} \
-                          zap.sh -cmd -port 9090 -config api.disablekey=true \
-                          -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                      docker run --rm --user ${uid}:${gid} \
+                        --name zap-scan --network=host \
+                        -v ${WORKSPACE}:/zap/wrk:rw \
+                        -t ${ZAP_IMAGE} \
+                        zap.sh -cmd -port 9090 -config api.disablekey=true \
+                        -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
                 }
             }
@@ -47,7 +50,7 @@ pipeline {
     post {
         always {
             // Stop containers (in case they’re still running)
-            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}  # -n = non-interactive'
+            // sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}  # -n = non-interactive'
             sh 'docker stop zap-scan || true'
             sh 'docker stop juiceshop || true'
         }
