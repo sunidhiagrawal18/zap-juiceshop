@@ -41,13 +41,21 @@ pipeline {
                 }
             }
         }
+
+        stage('Fix Permissions After Scan') {
+            steps {
+                sh """
+                  docker run --rm -v ${WORKSPACE}:/zap/wrk alpine chown -R 1000:1000 /zap/wrk
+                """
+            }
+}
     
 }
 
     post {
         always {
             // Stop containers (in case they’re still running)
-            sh 'chown -R jenkins:jenkins ${WORKSPACE} || true'
+            // sh 'chown -R jenkins:jenkins ${WORKSPACE} || true'
             sh 'docker stop zap-scan || true'
             sh 'docker stop juiceshop || true'
         }
