@@ -32,6 +32,9 @@ pipeline {
                 script {
                     def uid = sh(script: 'id -u', returnStdout: true).trim()
                     def gid = sh(script: 'id -g', returnStdout: true).trim()
+
+                     // Stop and remove the previous container, if it exists
+                    sh 'docker rm -f zap-scan || true'
         
                     sh """
                         docker run --rm --user ${uid}:${gid} \
