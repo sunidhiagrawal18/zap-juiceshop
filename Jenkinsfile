@@ -30,29 +30,14 @@ pipeline {
         stage('Run ZAP Scan') {
             steps {
                 script {
-                    def uid = sh(script: 'id -u', returnStdout: true).trim()
-                    def gid = sh(script: 'id -g', returnStdout: true).trim()
-
-                     // Stop and remove the previous container, if it exists
-                    sh 'docker rm -f zap-scan || true'
-        
                     sh """
-                        docker run --rm --user ${uid}:${gid} \
-                          --name zap-scan --network="host" \
+                        docker rm -f zap-scan || true
+                        docker run --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
-                          -i ${ZAP_IMAGE} \
+                          -t ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
                           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
-                // script {
-                //     sh """
-                //         docker rm -f zap-scan || true
-                //         docker run --user 1000:1000 --name zap-scan --network="host" \
-                //           -v ${WORKSPACE}:/zap/wrk:rw \
-                //           -t ${ZAP_IMAGE} \
-                //           zap.sh -cmd -port 9090 -config api.disablekey=true \
-                //           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
-                //     """
                 }
             }
         }
