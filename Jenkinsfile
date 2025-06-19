@@ -19,13 +19,13 @@ pipeline {
             }
         }
 
-        // stage('Debug Workspace Permissions') {
-        //     steps {
-        //         sh '''
-        //             chmod -R 777 ${WORKSPACE} || true
-        //         '''
-        //     }
-        // }
+        stage('Debug Workspace Permissions') {
+            steps {
+                sh '''
+                    chmod -R 777 ${WORKSPACE} || true
+                '''
+            }
+        }
         
         stage('Run ZAP Scan') {
             steps {
