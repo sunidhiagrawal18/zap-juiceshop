@@ -41,14 +41,6 @@ pipeline {
                 }
             }
         }
-
-        stage('Fix Permissions After Scan') {
-            steps {
-                sh """
-                  docker run --rm -v ${WORKSPACE}:/zap/wrk alpine chown -R 1000:1000 /zap/wrk
-                """
-            }
-}
     
 }
 
