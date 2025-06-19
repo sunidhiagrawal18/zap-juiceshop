@@ -4,57 +4,49 @@ pipeline {
     environment {
         ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
         JUICESHOP_IMAGE = 'bkimminich/juice-shop'
-        GITHUB_REPO = 'https://github.com/sunidhiagrawal18/zap-juiceshop.git'
         JUICESHOP_PORT = '3000'
     }
     
-    stages {     
+    stages {
         stage('Start JuiceShop') {
             steps {
                 script {
                     sh "docker run -d --name juiceshop -p ${JUICESHOP_PORT}:3000 --rm ${JUICESHOP_IMAGE}"
-                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} >/dev/null; do sleep 1; echo "Waiting for JuiceShop to start..."; done'
-                    echo "JuiceShop is now running and ready for testing"
+                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} >/dev/null; do sleep 1; done'
                 }
             }
         }
-
-        // stage('Debug Workspace Permissions') {
-        //     steps {
-        //         sh '''
-        //             chmod -R 777 ${WORKSPACE} || true
-        //         '''
-        //     }
-        // }
         
         stage('Run ZAP Scan') {
             steps {
                 script {
-                    def uid = sh(script: 'id -u', returnStdout: true).trim()
-                    def gid = sh(script: 'id -g', returnStdout: true).trim()
-                    
-                    sh 'docker rm -f zap-scan || true'
-                    
                     sh """
-                          docker run --rm --user ${uid}:${gid} --name zap-scan --network=host \
-                            -v ${WORKSPACE}:/zap/wrk:rw \
-                            -t ${ZAP_IMAGE} \
-                            zap.sh -dir /zap/wrk/.zap_home \
-                                   -addonupdate \
-                                   -config api.disablekey=true \
-                                   -port 9090 \
-                                   -J-Djava.util.prefs.userRoot=/zap/wrk/.java_prefs \
-                                   -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
-                        """
+                        docker rm -f zap-scan || true
+                        docker run -d --name zap-scan --network="host" \
+                          -v ${WORKSPACE}:/zap/wrk:rw \
+                          -t ${ZAP_IMAGE} \
+                          zap.sh -daemon -port 9090 -config api.disablekey=true \
+                          -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                    """
                 }
             }
-        } 
-}
-
+        }
+        
+        stage('Wait for ZAP Completion') {
+            steps {
+                sh '''
+                    # Wait for ZAP to finish scanning
+                    while docker logs zap-scan | grep -q "Scan progress"; do
+                        sleep 10
+                        echo "Scan in progress..."
+                    done
+                '''
+            }
+        }
+    }
+    
     post {
         always {
-            // Stop containers (in case they’re still running)
-            // sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}  # -n = non-interactive'
             sh 'docker stop zap-scan || true'
             sh 'docker stop juiceshop || true'
         }
