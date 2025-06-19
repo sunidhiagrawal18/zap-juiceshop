@@ -47,7 +47,7 @@ pipeline {
     post {
         always {
             // Stop containers (in case they’re still running)
-            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}  # -n = non-interactive'
+            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}'
             sh 'docker stop zap-scan || true'
             sh 'docker stop juiceshop || true'
         }
