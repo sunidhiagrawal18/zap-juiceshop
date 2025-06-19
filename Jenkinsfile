@@ -23,6 +23,7 @@ pipeline {
             steps {
                 script {
                     sh """
+                        docker rm -f zap-scan || true
                         docker run -d --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
                           -t ${ZAP_IMAGE} \
