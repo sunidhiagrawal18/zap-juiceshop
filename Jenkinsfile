@@ -31,12 +31,18 @@ pipeline {
             steps {
                 script {
                     sh """
-                        docker rm -f zap-scan || true
-                        docker run --name zap-scan --network="host" \
+                         docker rm -f zap-scan || true
+                         docker run -d \
+                          -u $(id -u):$(id -g) \
+                          -p 9090:9090 \
                           -v ${WORKSPACE}:/zap/wrk:rw \
-                          -t ${ZAP_IMAGE} \
+                          -i $(ZAP_IMAGE) zap.sh \
                           -daemon \
-                          zap.sh -port 9090 -config api.disablekey=true \
+                          -host 0.0.0.0 \
+                          -port 9090 \
+                          -config api.disablekey=true \
+                          -config api.addrs.addr.name=.* \
+                          -config api.addrs.addr.regex=true \
                           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
                 }
