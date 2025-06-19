@@ -22,7 +22,7 @@ pipeline {
         stage('Debug Workspace Permissions') {
             steps {
                 sh '''
-                    // chown -R jenkins:jenkins ${WORKSPACE} || true
+                    chown -R jenkins:jenkins ${WORKSPACE} || true
                     chmod -R 777 ${WORKSPACE} || true
                 '''
             }
@@ -48,7 +48,6 @@ pipeline {
     post {
         always {
             // Stop containers (in case they’re still running)
-            sh 'sudo chmod -R 755 ${WORKSPACE} || true'
             sh 'docker stop zap-scan || true'
             sh 'docker stop juiceshop || true'
         }
