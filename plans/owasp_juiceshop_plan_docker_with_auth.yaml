@@ -61,34 +61,34 @@ jobs:
     reportFile: "report.html"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
-    displayReport: false
-  risks:
-  - "info"
-  - "low"
-  - "medium"
-  - "high"
-  confidences:
-  - "falsepositive"
-  - "low"
-  - "medium"
-  - "high"
-  - "confirmed"
-  sections:
-  - "siteRiskCounts"
-  - "responseBody"
-  - "appendix"
-  - "alertTypes"
-  - "responseHeader"
-  - "alertTypeCounts"
-  - "riskConfidenceCounts"
-  - "alerts"
-  - "aboutThisReport"
-  - "contents"
-  - "requestBody"
-  - "reportDescription"
-  - "reportParameters"
-  - "requestHeader"
-  - "summaries"
+    displayReport: true
+    risks:
+      - "info"
+      - "low"
+      - "medium"
+      - "high"
+    confidences:
+      - "falsepositive"
+      - "low"
+      - "medium"
+      - "high"
+      - "confirmed"
+    sections:
+      - "siteRiskCounts"
+      - "responseBody"
+      - "appendix"
+      - "alertTypes"
+      - "responseHeader"
+      - "alertTypeCounts"
+      - "riskConfidenceCounts"
+      - "alerts"
+      - "aboutThisReport"
+      - "contents"
+      - "requestBody"
+      - "reportDescription"
+      - "reportParameters"
+      - "requestHeader"
+      - "summaries"
   sites: []
   name: "report"
 - type: "report"
@@ -98,18 +98,18 @@ jobs:
     reportFile: "juiceShopXmlReport.xml"  # ✅ Add extension!
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
-    displayReport: false
-  risks:
-  - "info"
-  - "low"
-  - "medium"
-  - "high"
-  confidences:
-  - "falsepositive"
-  - "low"
-  - "medium"
-  - "high"
-  - "confirmed"
+    displayReport: true
+    risks:
+      - "info"
+      - "low"
+      - "medium"
+      - "high"
+    confidences:
+      - "falsepositive"
+      - "low"
+      - "medium"
+      - "high"
+      - "confirmed"
   sites: []
   name: "report"
   type: "report"
