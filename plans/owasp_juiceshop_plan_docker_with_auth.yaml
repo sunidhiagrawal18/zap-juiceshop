@@ -57,7 +57,7 @@ jobs:
 - parameters:
     template: "risk-confidence-html"
     theme: "original"
-    reportDir: "../reports/"
+    reportDir: "/var/lib/jenkins/workspace/js/reports"
     reportFile: "juiceShopXmlReport"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
