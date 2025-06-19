@@ -8,15 +8,7 @@ pipeline {
         JUICESHOP_PORT = '3000'
     }
     
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main', 
-                    url: "${GITHUB_REPO}",
-                    credentialsId: 'github-credentials'
-            }
-        }
-        
+    stages {     
         stage('Start JuiceShop') {
             steps {
                 script {
@@ -31,7 +23,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                        docker run --rm --network="host" \
+                        docker run --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
                           -t ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
