@@ -58,10 +58,10 @@ jobs:
     template: "risk-confidence-html"
     # theme: "original"
     reportDir: "/zap/wrk"
-    reportFile: "report.html"
+    reportFile: "html_report.html"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
-    displayReport: true
+    displayReport: false
   risks:
     - "info"
     - "low"
@@ -95,10 +95,10 @@ jobs:
   parameters:
     template: "traditional-xml"
     reportDir: "/zap/wrk/"
-    reportFile: "juiceShopXmlReport.xml"  # ✅ Add extension!
+    reportFile: "xml_report.xml"  # ✅ Add extension!
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
-    displayReport: true
+    displayReport: false
   risks:
     - "info"
     - "low"
