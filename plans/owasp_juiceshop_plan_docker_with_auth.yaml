@@ -53,15 +53,24 @@ jobs:
   type: "activeScan"
   policyDefinition:
     rules: []
-# - type: report
-- parameters:
+- type: report
+  parameters:
     template: "risk-confidence-html"
     theme: "original"
-    reportDir: "/var/lib/jenkins/workspace/js/reports"
-    reportFile: "juiceShopXmlReport"
+    reportDir: "/zap/wrk"
+    reportFile: "zap_report"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
     displayReport: false
+# - type: report
+# - parameters:
+#     template: "risk-confidence-html"
+#     theme: "original"
+#     reportDir: "/var/lib/jenkins/workspace/js/reports"
+#     reportFile: "juiceShopXmlReport"
+#     reportTitle: "ZAP Scanning Report"
+#     reportDescription: ""
+#     displayReport: false
   risks:
   - "info"
   - "low"
@@ -91,8 +100,8 @@ jobs:
   - "summaries"
   sites: []
   name: "report"
-  type: "report"
-- parameters:
+- type: "report"
+  parameters:
     template: "traditional-xml"
     reportDir: "/zap/wrk/"
     reportFile: "juiceShopXmlReport"
