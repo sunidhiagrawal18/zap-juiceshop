@@ -58,7 +58,7 @@ jobs:
     template: "risk-confidence-html"
     theme: "original"
     reportDir: "/zap/wrk"
-    reportFile: "zap_report"
+    reportFile: "report.html"
     reportTitle: "ZAP Scanning Report"
     reportDescription: ""
     displayReport: false
