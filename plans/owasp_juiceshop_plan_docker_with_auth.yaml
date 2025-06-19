@@ -55,7 +55,7 @@ jobs:
     rules: []
 - type: report
   parameters:
-    template: "traditional-html"
+    template: "risk-confidence-html"
     # theme: "original"
     reportDir: "/zap/wrk"
     reportFile: "report.html"
