@@ -4,59 +4,106 @@ pipeline {
     environment {
         ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
         JUICESHOP_IMAGE = 'bkimminich/juice-shop'
-        GITHUB_REPO = 'https://github.com/sunidhiagrawal18/zap-juiceshop.git'
         JUICESHOP_PORT = '3000'
+        ZAP_PORT = '9090'
     }
     
-    stages {     
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs(deleteDirs: true)
+                sh 'mkdir -p ${WORKSPACE}/reports'
+            }
+        }
+        
         stage('Start JuiceShop') {
             steps {
                 script {
                     sh "docker run -d --name juiceshop -p ${JUICESHOP_PORT}:3000 --rm ${JUICESHOP_IMAGE}"
-                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} >/dev/null; do sleep 1; echo "Waiting for JuiceShop to start..."; done'
-                    echo "JuiceShop is now running and ready for testing"
+                    sh """
+                        timeout 60 bash -c '
+                        while ! curl -sf http://localhost:${JUICESHOP_PORT} >/dev/null; do 
+                            sleep 2
+                            echo "Waiting for JuiceShop to start..."
+                        done'
+                    """
                 }
-            }
-        }
-
-        stage('Debug Workspace Permissions') {
-            steps {
-                sh '''
-                    chmod -R 777 ${WORKSPACE} || true
-                '''
             }
         }
         
         stage('Run ZAP Scan') {
             steps {
                 script {
+                    sh 'docker rm -f zap-scan || true'
+                    
                     sh """
-                         docker rm -f zap-scan || true
-                         docker run -d \
-                          -u $(id -u):$(id -g) \
-                          -p 9090:9090 \
-                          -v ${WORKSPACE}:/zap/wrk:rw \
-                          -i $(ZAP_IMAGE) zap.sh \
-                          -daemon \
-                          -host 0.0.0.0 \
-                          -port 9090 \
-                          -config api.disablekey=true \
-                          -config api.addrs.addr.name=.* \
-                          -config api.addrs.addr.regex=true \
-                          -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                        docker run -d --name zap-scan \
+                        --network=host \
+                        -u $(id -u jenkins):$(id -g jenkins) \
+                        -v ${WORKSPACE}:/zap/wrk:rw \
+                        -e ZAP_AUTOMATION_CONFIG='/zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml' \
+                        -t ${ZAP_IMAGE} \
+                        zap.sh -daemon \
+                        -port ${ZAP_PORT} \
+                        -config api.disablekey=true \
+                        -config api.addrs.addr.regex=true \
+                        -config api.addrs.addr.name=.* \
+                        -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
+                    """
+                    
+                    // Wait for ZAP initialization
+                    sh """
+                        timeout 30 bash -c '
+                        while ! curl -sf http://localhost:${ZAP_PORT} >/dev/null; do 
+                            sleep 3
+                            echo "Waiting for ZAP to start..."
+                        done'
                     """
                 }
             }
         }
+        
+        stage('Monitor Scan') {
+            steps {
+                script {
+                    timeout(time: 30, unit: 'MINUTES') {
+                        waitUntil {
+                            def logs = sh(script: 'docker logs zap-scan 2>&1 | tail -50', returnStdout: true).trim()
+                            echo "ZAP Status:\n${logs}"
+                            
+                            if (logs.contains('Automation plan completed') || 
+                                logs.contains('Scan progress 100%')) {
+                                return true
+                            }
+                            
+                            if (logs.contains('ERROR') || logs.contains('Exception')) {
+                                error("ZAP scan failed:\n${logs}")
+                            }
+                            
+                            sleep 10
+                            return false
+                        }
+                    }
+                }
+            }
+        }
+    }
     
-}
-
     post {
         always {
-            // Stop containers (in case they’re still running)
-            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}'
-            sh 'docker stop zap-scan || true'
-            sh 'docker stop juiceshop || true'
+            script {
+                // Capture logs before cleanup
+                sh 'docker logs zap-scan > ${WORKSPACE}/zap_scan.log 2>&1 || true'
+                archiveArtifacts artifacts: 'zap_scan.log'
+                
+                // Cleanup containers
+                sh 'docker stop zap-scan || true'
+                sh 'docker rm -f zap-scan || true'
+                sh 'docker stop juiceshop || true'
+                
+                // Fix permissions properly
+                sh 'chown -R jenkins:jenkins ${WORKSPACE} || true'
+            }
         }
     }
 }
