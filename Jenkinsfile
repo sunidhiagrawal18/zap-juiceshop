@@ -37,17 +37,16 @@ pipeline {
                     sh 'docker rm -f zap-scan || true'
                     
                     sh """
-                        docker run -d --name zap-scan \
-                        --network=host \
-                        -u $(id -u jenkins):$(id -g jenkins) \
-                        -v ${WORKSPACE}:/zap/wrk:rw \
-                        -e ZAP_AUTOMATION_CONFIG='/zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml' \
-                        -t ${ZAP_IMAGE} \
-                        zap.sh -daemon \
-                        -port ${ZAP_PORT} \
-                        -config api.disablekey=true \
-                        -config api.addrs.addr.regex=true \
-                        -config api.addrs.addr.name=.* \
+                        docker run -d --name zap-scan \\
+                        --network=host \\
+                        -u \$(id -u jenkins):\$(id -g jenkins) \\
+                        -v ${WORKSPACE}:/zap/wrk:rw \\
+                        -t ${ZAP_IMAGE} \\
+                        zap.sh -daemon \\
+                        -port ${ZAP_PORT} \\
+                        -config api.disablekey=true \\
+                        -config api.addrs.addr.regex=true \\
+                        -config api.addrs.addr.name=.* \\
                         -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
                     
@@ -100,9 +99,6 @@ pipeline {
                 sh 'docker stop zap-scan || true'
                 sh 'docker rm -f zap-scan || true'
                 sh 'docker stop juiceshop || true'
-                
-                // Fix permissions properly
-                sh 'chown -R jenkins:jenkins ${WORKSPACE} || true'
             }
         }
     }
