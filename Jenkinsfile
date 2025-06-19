@@ -24,7 +24,7 @@ pipeline {
                 script {
                     sh """
                         docker rm -f zap-scan || true
-                        docker run -d --name zap-scan --network="host" \
+                        docker run --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
                           -t ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
