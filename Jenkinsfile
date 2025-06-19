@@ -22,6 +22,7 @@ pipeline {
         stage('Debug Workspace Permissions') {
             steps {
                 sh '''
+                    chown -R jenkins:jenkins ${WORKSPACE} || true
                     chmod -R 777 ${WORKSPACE} || true
                 '''
             }
