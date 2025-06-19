@@ -9,6 +9,12 @@ pipeline {
     }
     
     stages {     
+
+        stage('Cleanup Workspace') {
+            steps {
+                deleteDir() // This cleans up everything in ${WORKSPACE}
+            }
+}
         stage('Start JuiceShop') {
             steps {
                 script {
