@@ -55,8 +55,8 @@ jobs:
     rules: []
 - type: report
   parameters:
-    template: "risk-confidence-html"
-    theme: "original"
+    template: "traditional-html"
+    # theme: "original"
     reportDir: "/zap/wrk"
     reportFile: "report.html"
     reportTitle: "ZAP Scanning Report"
