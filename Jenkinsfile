@@ -41,22 +41,6 @@ pipeline {
                 }
             }
         }
-
-        stage('Archive Results') {
-            steps {
-                // Archive both reports if needed
-                archiveArtifacts artifacts: 'report.html, juiceShopXmlReport.xml', allowEmptyArchive: false
-        
-                publishHTML target: [
-                    reportDir: '.',
-                    reportFiles: 'report.html',
-                    reportName: 'ZAP Report',
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true
-                ]
-            }
-        }
     
 }
 
