@@ -9,12 +9,6 @@ pipeline {
     }
     
     stages {     
-
-        stage('Cleanup Workspace') {
-            steps {
-                deleteDir() // This cleans up everything in ${WORKSPACE}
-            }
-}
         stage('Start JuiceShop') {
             steps {
                 script {
@@ -29,10 +23,6 @@ pipeline {
             steps {
                 sh '''
                     chmod -R 777 ${WORKSPACE} || true
-                    echo "Workspace ownership:"
-                    ls -ld ${WORKSPACE}
-                    echo "Workspace contents:"
-                    ls -la ${WORKSPACE}
                 '''
             }
         }
@@ -44,29 +34,13 @@ pipeline {
                         docker rm -f zap-scan || true
                         docker run --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
-                          -i ${ZAP_IMAGE} \
+                          -t ${ZAP_IMAGE} \
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
                           -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
                 }
             }
         }
-
-        stage('Debug: Check Container Permissions') {
-            steps {
-                script {
-                    // List contents of /zap/ and /zap/wrk
-                    sh 'docker exec zap-scan ls -la /zap/ || echo "Failed to list /zap/"'
-                    sh 'docker exec zap-scan ls -la /zap/wrk || echo "Failed to list /zap/wrk"'
-        
-                    // Try creating a file in /zap/wrk
-                    sh 'docker exec zap-scan touch /zap/wrk/test.txt || echo "Failed to create test file"'
-        
-                    // Confirm file was created
-                    sh 'docker exec zap-scan ls -la /zap/wrk/test.txt || echo "test.txt not found"'
-                }
-            }
-}
 
         stage('Archive Results') {
             steps {
