@@ -53,15 +53,15 @@ jobs:
   type: "activeScan"
   policyDefinition:
     rules: []
-- type: report
-  parameters:
+# - type: report
+- parameters:
     template: "risk-confidence-html"
     theme: "original"
-    reportDir: "/zap/wrk/zap-report"
-    # reportFile: "index.html"
-    # reportTitle: "ZAP Scanning Report"
-    # reportDescription: ""
-    # displayReport: false
+    reportDir: "../reports/"
+    reportFile: "juiceShopXmlReport"
+    reportTitle: "ZAP Scanning Report"
+    reportDescription: ""
+    displayReport: false
   risks:
   - "info"
   - "low"
