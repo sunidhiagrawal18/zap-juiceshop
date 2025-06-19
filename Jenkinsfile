@@ -47,6 +47,7 @@ pipeline {
     post {
         always {
             // Stop containers (in case they’re still running)
+            chmod -R 755 ${WORKSPACE} || true
             sh 'docker stop zap-scan || true'
             sh 'docker stop juiceshop || true'
         }
