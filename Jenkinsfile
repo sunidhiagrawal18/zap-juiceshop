@@ -1,40 +1,53 @@
 pipeline {
     agent any
     environment {
-        ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:2.12.0'  // Specific version
+        ZAP_IMAGE = 'owasp/zap2docker-stable'  // Using official stable image
         JUICE_SHOP_IMAGE = 'bkimminich/juice-shop'
-        NETWORK_NAME = 'zap-net'
+        NETWORK_NAME = 'zap-net-${BUILD_ID}'  // Unique network per build
     }
     stages {
-        stage('Setup Network') {
+        stage('Setup Environment') {
             steps {
-                sh 'docker network create ${NETWORK_NAME} || true'
+                script {
+                    // Create unique network for this build
+                    sh "docker network create ${NETWORK_NAME}"
+                    
+                    // Pull images in parallel for faster startup
+                    parallel(
+                        'Pull ZAP': { sh "docker pull ${ZAP_IMAGE}" },
+                        'Pull Juice Shop': { sh "docker pull ${JUICE_SHOP_IMAGE}" }
+                    )
+                }
             }
         }
 
         stage('Start Juice Shop') {
             steps {
-                sh 'docker rm -f juiceshop || true'
-                sh """
-                docker run -d --name juiceshop \
-                --network ${NETWORK_NAME} \
-                -p 3000:3000 \
-                --rm ${JUICE_SHOP_IMAGE}
-                """
-                sh """
-                while ! docker run --rm --network ${NETWORK_NAME} \
-                curlimages/curl -s http://juiceshop:3000 >/dev/null; do
-                    sleep 1
-                    echo "Waiting for JuiceShop to start..."
-                done
-                """
+                script {
+                    sh """
+                    docker run -d --name juiceshop \
+                    --network ${NETWORK_NAME} \
+                    -p 3000:3000 \
+                    --rm ${JUICE_SHOP_IMAGE}
+                    """
+                    // Wait for Juice Shop to be ready
+                    sh """
+                    docker run --rm --network ${NETWORK_NAME} \
+                    curlimages/curl \
+                    --max-time 120 \
+                    --retry 10 \
+                    --retry-delay 5 \
+                    --retry-max-time 60 \
+                    http://juiceshop:3000
+                    """
+                }
             }
         }
 
-        stage('Prepare Scan') {
+        stage('Configure Scan') {
             steps {
                 script {
-                    // Create the authentication script
+                    // Create authentication script
                     writeFile file: "${WORKSPACE}/juice_auth.js", text: """
 function authenticate(helper, params, credentials) {
     var loginUrl = 'http://juiceshop:3000/rest/user/login';
@@ -51,7 +64,7 @@ function getRequiredParamsNames() {
     return [];
 }
 """
-                    // Create the scan plan
+                    // Create scan configuration
                     writeFile file: "${WORKSPACE}/scan.yaml", text: """
 env:
   contexts:
@@ -63,8 +76,6 @@ env:
         parameters:
           script: "juice_auth.js"
           scriptEngine: "ECMAScript"
-      sessionManagement:
-        method: "cookie"
 
 jobs:
   - type: "script"
@@ -96,15 +107,15 @@ jobs:
             }
         }
 
-        stage('Run Scan') {
+        stage('Run ZAP Scan') {
             steps {
                 script {
                     sh """
-                    docker rm -f zap-scan || true
                     docker run --rm --name zap-scan \
                     --network ${NETWORK_NAME} \
                     -v ${WORKSPACE}:/zap/wrk:rw \
                     -p 8080:8080 \
+                    -e ZAP_JVM_OPTIONS="-Xmx2g" \
                     -t ${ZAP_IMAGE} zap.sh -cmd \
                     -port 8080 \
                     -config api.disablekey=true \
@@ -117,9 +128,19 @@ jobs:
     }
     post {
         always {
-            sh 'docker stop juiceshop zap-scan || true'
-            sh 'docker network rm ${NETWORK_NAME} || true'
-            archiveArtifacts artifacts: 'report.html'
+            script {
+                // Cleanup containers
+                sh 'docker stop juiceshop zap-scan || true'
+                
+                // Remove network
+                sh "docker network rm ${NETWORK_NAME} || true"
+                
+                // Archive results
+                archiveArtifacts artifacts: 'report.html'
+                
+                // Store console output
+                archiveArtifacts artifacts: 'zap.log', allowEmptyArchive: true
+            }
         }
     }
 }
