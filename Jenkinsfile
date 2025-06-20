@@ -6,7 +6,7 @@ pipeline {
         JUICESHOP_IMAGE = 'bkimminich/juice-shop'
         GITHUB_REPO = 'https://github.com/sunidhiagrawal18/zap-juiceshop.git'
         JUICESHOP_PORT = '3000'
-        ZAP_PORT = '9090'
+        ZAP_PORT = '8082'
     }
     
     stages {     
