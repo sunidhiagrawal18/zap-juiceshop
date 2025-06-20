@@ -79,6 +79,9 @@ jobs:
                           zap.sh -cmd -port 9090 -config api.disablekey=true \
                           -autorun /zap/wrk/plans/juiceshop_heroku_plan.yaml
                     """
+                    // Save and display the last 100 lines of logs for debugging
+                    sh 'docker logs --tail 100 zap-scan > ${WORKSPACE}/zap_tail.log'
+                    sh 'cat ${WORKSPACE}/zap_tail.log'
                 }
             }
         }
