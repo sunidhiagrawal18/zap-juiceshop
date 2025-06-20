@@ -43,7 +43,7 @@ jobs:
     type: "activeScan"
     parameters:
       url: "https://juice-shop.herokuapp.com"
-      context: "JuiceShop-Heroku"
+      // context: "JuiceShop-Heroku"
       policy: "Default Policy"
       maxRuleDurationInMins: 10
       maxScanDurationInMins: 60
