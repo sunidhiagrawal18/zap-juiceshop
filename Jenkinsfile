@@ -19,42 +19,51 @@ env:
   contexts:
     - name: "JuiceShop-Heroku"
       urls:
-        - "${TARGET_URL}"
+        - "https://juice-shop.herokuapp.com"
       includePaths:
-        - "${TARGET_URL}/.*"
+        - "https://juice-shop.herokuapp.com/.*"
       authentication:
-        type: "form"
-        parameters:
-          loginUrl: "${TARGET_URL}/#/login"
-          loginRequestData: "email={%username%}&password={%password%}&submit="
+        verification:
+          loggedInIndicator: ".*Logout.*"
+          loggedOutIndicator: ".*Login.*"
       users:
         - name: "test-user"
           credentials:
             username: "admin@juice-sh.op"
             password: "admin123"
-
+      authentication:
+        method: "form"
+        parameters:
+          loginUrl: "https://juice-shop.herokuapp.com/#/login"
+          loginRequestData: "email={%username%}&password={%password%}"
 jobs:
-  - name: "spider"
-    type: "spider"
+  - type: "spider"
     parameters:
+      context: "JuiceShop-Heroku"
+      user: "test-user"
       maxDuration: 30
 
-  - name: "active-scan"
-    type: "activeScan"
+  - type: "ajaxSpider"
     parameters:
-      url: "https://juice-shop.herokuapp.com"
-      // context: "JuiceShop-Heroku"
-      policy: "Default Policy"
+      context: "JuiceShop-Heroku"
+      user: "test-user"
+      maxDuration: 10
+
+  - type: "activeScan"
+    parameters:
+      context: "JuiceShop-Heroku"
+      scanPolicyName: "Default Policy"
       maxRuleDurationInMins: 10
       maxScanDurationInMins: 60
+      delayInMs: 2000
+      target: "https://juice-shop.herokuapp.com"
 
-  - name: "report"
-    type: "report"
+  - type: "report"
     parameters:
       template: "traditional-html"
       reportFile: "/zap/wrk/reports/juiceshop-heroku-report.html"
       reportDir: "/zap/wrk/reports"
-      reportTitle: "OWASP ZAP Juice Shop Heroku Scan"
+      title: "OWASP ZAP Juice Shop Heroku Scan"
 """
             }
         }
