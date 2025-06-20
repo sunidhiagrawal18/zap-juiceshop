@@ -5,33 +5,31 @@ pipeline {
         TARGET_URL = 'https://juice-shop.herokuapp.com'
     }
     stages {
-        stage('Run Basic ZAP Scan') {
+        stage('Quick Scan') {
             steps {
                 script {
-                    // Cleanup previous runs
-                    sh 'docker rm -f zap-scan || true'
-                    
-                    // Run scan with minimal parameters
                     sh """
-                        docker run --rm --name zap-scan \
-                        -v ${WORKSPACE}:/zap/wrk:rw \
-                        -t ${ZAP_IMAGE} zap.sh -cmd \
-                        -quickurl ${TARGET_URL} \
-                        -quickprogress \
-                        -quickout /zap/wrk/report.html
+                    docker run --rm --name zap-fast-scan \
+                    -v ${WORKSPACE}:/zap/wrk:rw \
+                    -t ${ZAP_IMAGE} zap.sh -cmd \
+                    -quickurl ${TARGET_URL} \
+                    -quickprogress \
+                    -config scanner.threadPerHost=10 \
+                    -config spider.maxDuration=5 \
+                    -config ajaxSpider.maxDuration=2 \
+                    -config scan.maxDuration=15 \
+                    -quickout /zap/wrk/zap_quick_report.html
                     """
                 }
             }
         }
-        
-        stage('Archive Report') {
-            steps {
-                archiveArtifacts artifacts: 'report.html', allowEmptyArchive: true
-            }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'zap_quick_report.html'
         }
     }
 }
-
 
 
 // pipeline {
