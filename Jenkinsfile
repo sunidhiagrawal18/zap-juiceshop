@@ -2,33 +2,40 @@ pipeline {
     agent any
     environment {
         ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
-        // Define variables here
-        TARGET_URL = 'https://juice-shop.herokuapp.com'
-        AUTH_USER = 'admin@juice-sh.op'
-        AUTH_PASS = 'admin123'
+        LOCAL_JUICESHOP = 'http://localhost:3000'
     }
     stages {
-        stage('Prepare Auth Config') {
+        stage('Start Juice Shop') {
             steps {
-                // Create the YAML file with actual values instead of variables
-                writeFile file: "${WORKSPACE}/auth_scan.yaml", text: """
+                sh 'docker run -d --name juiceshop -p 3000:3000 --rm bkimminich/juice-shop'
+                sh '''
+                    while ! curl -s http://localhost:3000 >/dev/null; do 
+                        sleep 1
+                        echo "Waiting for JuiceShop..."
+                    done
+                '''
+            }
+        }
+        
+        stage('Authenticated Scan') {
+            steps {
+                script {
+                    writeFile file: "${WORKSPACE}/auth_plan.yaml", text: """
 env:
   contexts:
     - name: "JuiceShop-Auth"
-      urls:
-        - "https://juice-shop.herokuapp.com"  # Hardcoded URL
-      includePaths:
-        - "https://juice-shop.herokuapp.com/.*"
+      urls: ["${LOCAL_JUICESHOP}"]
+      includePaths: ["${LOCAL_JUICESHOP}/.*"]
       authentication:
-        method: "form"
+        method: "json"
         parameters:
-          loginUrl: "https://juice-shop.herokuapp.com/#/login"
-          loginRequestData: "email={%username%}&password={%password%}&submit="
+          loginUrl: "${LOCAL_JUICESHOP}/rest/user/login"
+          loginRequestData: '{"email":"admin@juice-sh.op","password":"admin123"}'
+          authToken: "authentication.token"
       verification:
-        loggedInIndicator: ".*Logout.*"
-        loggedOutIndicator: ".*Login.*"
+        loggedInIndicator: ".*user/.*"
       users:
-        - name: "admin-user"
+        - name: "admin"
           credentials:
             username: "admin@juice-sh.op"
             password: "admin123"
@@ -37,40 +44,28 @@ jobs:
   - type: "spider"
     parameters:
       context: "JuiceShop-Auth"
-      user: "admin-user"
-
-  - type: "ajaxSpider"
-    parameters:
-      context: "JuiceShop-Auth"
-      user: "admin-user"
+      user: "admin"
       maxDuration: 5
 
   - type: "activeScan"
     parameters:
       context: "JuiceShop-Auth"
-      user: "admin-user"
-      scanPolicyName: "Default Policy"
-      maxScanDurationInMins: 30
+      user: "admin"
+      policy: "Default Policy"
+      maxDuration: 20
 
   - type: "report"
     parameters:
-      template: "traditional-html-plus"
-      reportFile: "/zap/wrk/zap-auth-report.html"
+      template: "traditional-html"
+      reportFile: "/zap/wrk/report.html"
 """
-            }
-        }
-
-        stage('Run Authenticated Scan') {
-            steps {
-                script {
+                    
                     sh """
-                    docker run --rm --name zap-auth-scan \\
-                    -v ${WORKSPACE}:/zap/wrk:rw \\
-                    -t ${ZAP_IMAGE} zap.sh -cmd \\
-                    -config scanner.threadPerHost=8 \\
-                    -config spider.maxDuration=10 \\
-                    -config scan.maxDuration=30 \\
-                    -autorun /zap/wrk/auth_scan.yaml
+                    docker run --rm --name zap-scan \
+                    -v ${WORKSPACE}:/zap/wrk:rw \
+                    --network host \
+                    -t ${ZAP_IMAGE} zap.sh -cmd \
+                    -autorun /zap/wrk/auth_plan.yaml
                     """
                 }
             }
@@ -78,7 +73,8 @@ jobs:
     }
     post {
         always {
-            archiveArtifacts artifacts: 'zap-auth-report.html'
+            sh 'docker stop juiceshop zap-scan || true'
+            archiveArtifacts artifacts: 'report.html'
         }
     }
 }
