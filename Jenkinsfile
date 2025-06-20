@@ -42,30 +42,71 @@ env:
       urls: ["http://juiceshop:3000"]
       includePaths: ["http://juiceshop:3000/.*"]
       authentication:
-        method: "json"
+        method: "script"
         parameters:
-          loginUrl: "http://juiceshop:3000/rest/user/login"
-          loginRequestData: '{"email":"admin@juice-sh.op","password":"admin123"}'
-          authToken: "authentication.token"
-          loggedInIndicator: ".*user/.*"
+          script: "JuiceShopAuth.js"
+          scriptEngine: "ECMAScript"
+      sessionManagement:
+        method: "script"
+        parameters:
+          script: "JuiceShopAuth.js"
+          scriptEngine: "ECMAScript"
 
 jobs:
   - type: "spider"
     parameters:
       context: "JuiceShop-Auth"
+      maxDuration: 5
+
+  - type: "script"
+    parameters:
+      action: "add"
+      type: "httpsender"
+      engine: "ECMAScript"
+      name: "JuiceShopAuth.js"
+      file: "/zap/wrk/scripts/JuiceShopAuth.js"
 
   - type: "activeScan"
     parameters:
       context: "JuiceShop-Auth"
-      policy: "Default Policy"
-      maxScanDurationInMins: 20
+      scanPolicyName: "Default Policy"
+      threadPerHost: 5
+      maxScanDurationInMins: 15
+      delayInMs: 1000
 
   - type: "report"
     parameters:
       template: "traditional-html"
       reportFile: "/zap/wrk/report.html"
 """
+                    writeFile file: "${WORKSPACE}/scripts/JuiceShopAuth.js", text: """
+function authenticate(helper, params, credentials) {
+    var loginUrl = 'http://juiceshop:3000/rest/user/login';
+    var request = helper.prepareMessage();
+    request.getRequestHeader().setURI(new java.net.URI(loginUrl, false));
+    request.getRequestHeader().setMethod('POST');
+    request.getRequestHeader().setHeader('Content-Type', 'application/json');
+    request.setRequestBody('{"email":"' + credentials.getParam('username') + 
+                         '","password":"' + credentials.getParam('password') + '"}');
+    helper.sendAndReceive(request);
+    var response = JSON.parse(request.getResponseBody().toString());
+    return response.authentication.token;
+}
+
+function getRequiredParamsNames() {
+    return ['username', 'password'];
+}
+
+function getOptionalParamsNames() {
+    return [];
+}
+
+function getCredentialsParamsNames() {
+    return ['username', 'password'];
+}
+"""
                     sh """
+                    mkdir -p ${WORKSPACE}/scripts
                     docker rm -f zap-scan || true
                     docker run --rm --name zap-scan \
                     --network ${JUICE_SHOP_NETWORK} \
@@ -74,6 +115,8 @@ jobs:
                     -t ${ZAP_IMAGE} zap.sh -cmd \
                     -port ${ZAP_PORT} \
                     -config api.disablekey=true \
+                    -config scanner.threadPerHost=5 \
+                    -config scanner.delayInMs=1000 \
                     -autorun /zap/wrk/auth_plan.yaml
                     """
                 }
