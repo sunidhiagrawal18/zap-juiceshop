@@ -1,0 +1,44 @@
+env:
+  contexts:
+    - name: "JuiceShop-Auth"
+      urls:
+        - "${TARGET_URL}"
+      includePaths:
+        - "${TARGET_URL}/.*"
+      authentication:
+        method: "form"
+        parameters:
+          loginUrl: "${TARGET_URL}/#/login"
+          loginRequestData: "email={%username%}&password={%password%}&submit="
+      verification:
+        loggedInIndicator: ".*Logout.*"
+        loggedOutIndicator: ".*Login.*"
+      users:
+        - name: "admin-user"
+          credentials:
+            username: "${AUTH_USER}"
+            password: "${AUTH_PASS}"
+
+jobs:
+  - type: "spider"
+    parameters:
+      context: "JuiceShop-Auth"
+      user: "admin-user"
+
+  - type: "ajaxSpider"
+    parameters:
+      context: "JuiceShop-Auth"
+      user: "admin-user"
+      maxDuration: 5
+
+  - type: "activeScan"
+    parameters:
+      context: "JuiceShop-Auth"
+      user: "admin-user"
+      scanPolicyName: "API-scan"  # More aggressive than Default
+      maxScanDurationInMins: 30
+
+  - type: "report"
+    parameters:
+      template: "traditional-html-plus"
+      reportFile: "/zap/wrk/zap-auth-report.html"
