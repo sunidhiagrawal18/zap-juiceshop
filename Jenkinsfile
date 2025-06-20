@@ -3,10 +3,12 @@ pipeline {
     environment {
         ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
         LOCAL_JUICESHOP = 'http://localhost:3000'
+        ZAP_PORT = '8090'  // Using non-default port
     }
     stages {
         stage('Start Juice Shop') {
             steps {
+                sh 'docker rm -f juiceshop || true'
                 sh 'docker run -d --name juiceshop -p 3000:3000 --rm bkimminich/juice-shop'
                 sh '''
                     while ! curl -s http://localhost:3000 >/dev/null; do 
@@ -61,10 +63,14 @@ jobs:
 """
                     
                     sh """
+                    docker rm -f zap-scan || true
                     docker run --rm --name zap-scan \
                     -v ${WORKSPACE}:/zap/wrk:rw \
-                    --network host \
+                    -p ${ZAP_PORT}:${ZAP_PORT} \
                     -t ${ZAP_IMAGE} zap.sh -cmd \
+                    -port ${ZAP_PORT} \
+                    -host 0.0.0.0 \
+                    -config api.disablekey=true \
                     -autorun /zap/wrk/auth_plan.yaml
                     """
                 }
