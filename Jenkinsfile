@@ -1,45 +1,41 @@
 pipeline {
     agent any
     environment {
-        ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
-        ZAP_PORT = '8090'
+        ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:2.12.0'  // Specific version
         JUICE_SHOP_IMAGE = 'bkimminich/juice-shop'
-        JUICE_SHOP_NETWORK = 'zap-juice-net'
+        NETWORK_NAME = 'zap-net'
     }
     stages {
         stage('Setup Network') {
             steps {
-                sh 'docker network create ${JUICE_SHOP_NETWORK} || true'
+                sh 'docker network create ${NETWORK_NAME} || true'
             }
         }
-        
+
         stage('Start Juice Shop') {
             steps {
                 sh 'docker rm -f juiceshop || true'
-                sh '''
-                    docker run -d --name juiceshop \
-                    --network ${JUICE_SHOP_NETWORK} \
-                    -p 3000:3000 \
-                    --rm ${JUICE_SHOP_IMAGE}
-                '''
-                sh '''
-                    while ! docker run --rm --network ${JUICE_SHOP_NETWORK} \
-                    curlimages/curl -s http://juiceshop:3000 >/dev/null; do
-                        sleep 1
-                        echo "Waiting for JuiceShop..."
-                    done
-                '''
+                sh """
+                docker run -d --name juiceshop \
+                --network ${NETWORK_NAME} \
+                -p 3000:3000 \
+                --rm ${JUICE_SHOP_IMAGE}
+                """
+                sh """
+                while ! docker run --rm --network ${NETWORK_NAME} \
+                curlimages/curl -s http://juiceshop:3000 >/dev/null; do
+                    sleep 1
+                    echo "Waiting for JuiceShop to start..."
+                done
+                """
             }
         }
-        
-        stage('Prepare Authentication') {
+
+        stage('Prepare Scan') {
             steps {
                 script {
-                    // Create scripts directory
-                    sh 'mkdir -p ${WORKSPACE}/scripts'
-                    
-                    // Create authentication script
-                    writeFile file: "${WORKSPACE}/scripts/auth.js", text: """
+                    // Create the authentication script
+                    writeFile file: "${WORKSPACE}/juice_auth.js", text: """
 function authenticate(helper, params, credentials) {
     var loginUrl = 'http://juiceshop:3000/rest/user/login';
     var request = helper.prepareMessage();
@@ -54,29 +50,21 @@ function authenticate(helper, params, credentials) {
 function getRequiredParamsNames() {
     return [];
 }
-
-function getOptionalParamsNames() {
-    return [];
-}
 """
-                }
-            }
-        }
-        
-        stage('Run ZAP Scan') {
-            steps {
-                script {
-                    writeFile file: "${WORKSPACE}/auth_plan.yaml", text: """
+                    // Create the scan plan
+                    writeFile file: "${WORKSPACE}/scan.yaml", text: """
 env:
   contexts:
-    - name: "JuiceShop-Auth"
+    - name: "JuiceShop"
       urls: ["http://juiceshop:3000"]
       includePaths: ["http://juiceshop:3000/.*"]
       authentication:
         method: "script"
         parameters:
-          script: "auth.js"
+          script: "juice_auth.js"
           scriptEngine: "ECMAScript"
+      sessionManagement:
+        method: "cookie"
 
 jobs:
   - type: "script"
@@ -84,36 +72,44 @@ jobs:
       action: "add"
       type: "authentication"
       engine: "ECMAScript"
-      name: "auth.js"
-      file: "/zap/wrk/scripts/auth.js"
+      name: "juice_auth.js"
+      file: "/zap/wrk/juice_auth.js"
 
   - type: "spider"
     parameters:
-      context: "JuiceShop-Auth"
+      context: "JuiceShop"
       maxDuration: 5
 
   - type: "activeScan"
     parameters:
-      context: "JuiceShop-Auth"
+      context: "JuiceShop"
       policy: "Default"
-      threadPerHost: 3
       maxScanDurationInMins: 15
+      threadPerHost: 3
 
   - type: "report"
     parameters:
       template: "traditional-html"
       reportFile: "/zap/wrk/report.html"
 """
+                }
+            }
+        }
+
+        stage('Run Scan') {
+            steps {
+                script {
                     sh """
                     docker rm -f zap-scan || true
                     docker run --rm --name zap-scan \
-                    --network ${JUICE_SHOP_NETWORK} \
+                    --network ${NETWORK_NAME} \
                     -v ${WORKSPACE}:/zap/wrk:rw \
-                    -p ${ZAP_PORT}:${ZAP_PORT} \
+                    -p 8080:8080 \
                     -t ${ZAP_IMAGE} zap.sh -cmd \
-                    -port ${ZAP_PORT} \
+                    -port 8080 \
                     -config api.disablekey=true \
-                    -autorun /zap/wrk/auth_plan.yaml
+                    -config scanner.threadPerHost=3 \
+                    -autorun /zap/wrk/scan.yaml
                     """
                 }
             }
@@ -122,7 +118,7 @@ jobs:
     post {
         always {
             sh 'docker stop juiceshop zap-scan || true'
-            sh 'docker network rm ${JUICE_SHOP_NETWORK} || true'
+            sh 'docker network rm ${NETWORK_NAME} || true'
             archiveArtifacts artifacts: 'report.html'
         }
     }
