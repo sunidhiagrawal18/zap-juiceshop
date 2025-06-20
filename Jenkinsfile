@@ -32,14 +32,14 @@ pipeline {
             }
         }
         
-        stage('Prepare Scripts') {
+        stage('Prepare Authentication') {
             steps {
                 script {
                     // Create scripts directory
                     sh 'mkdir -p ${WORKSPACE}/scripts'
                     
                     // Create authentication script
-                    writeFile file: "${WORKSPACE}/scripts/JuiceShopAuth.js", text: """
+                    writeFile file: "${WORKSPACE}/scripts/auth.js", text: """
 function authenticate(helper, params, credentials) {
     var loginUrl = 'http://juiceshop:3000/rest/user/login';
     var request = helper.prepareMessage();
@@ -48,20 +48,15 @@ function authenticate(helper, params, credentials) {
     request.getRequestHeader().setHeader('Content-Type', 'application/json');
     request.setRequestBody('{"email":"admin@juice-sh.op","password":"admin123"}');
     helper.sendAndReceive(request);
-    var response = JSON.parse(request.getResponseBody().toString());
-    return response.authentication.token;
+    return request.getResponseHeader().getStatusCode() == 200;
 }
 
 function getRequiredParamsNames() {
-    return ['username', 'password'];
+    return [];
 }
 
 function getOptionalParamsNames() {
     return [];
-}
-
-function getCredentialsParamsNames() {
-    return ['username', 'password'];
 }
 """
                 }
@@ -80,13 +75,8 @@ env:
       authentication:
         method: "script"
         parameters:
-          script: "JuiceShopAuth.js"
+          script: "auth.js"
           scriptEngine: "ECMAScript"
-      users:
-        - name: "admin"
-          credentials:
-            username: "admin@juice-sh.op"
-            password: "admin123"
 
 jobs:
   - type: "script"
@@ -94,8 +84,8 @@ jobs:
       action: "add"
       type: "authentication"
       engine: "ECMAScript"
-      name: "JuiceShopAuth.js"
-      file: "/zap/wrk/scripts/JuiceShopAuth.js"
+      name: "auth.js"
+      file: "/zap/wrk/scripts/auth.js"
 
   - type: "spider"
     parameters:
@@ -108,7 +98,6 @@ jobs:
       policy: "Default"
       threadPerHost: 3
       maxScanDurationInMins: 15
-      delayInMs: 1000
 
   - type: "report"
     parameters:
@@ -124,8 +113,6 @@ jobs:
                     -t ${ZAP_IMAGE} zap.sh -cmd \
                     -port ${ZAP_PORT} \
                     -config api.disablekey=true \
-                    -config scanner.threadPerHost=3 \
-                    -config scanner.delayInMs=1000 \
                     -autorun /zap/wrk/auth_plan.yaml
                     """
                 }
