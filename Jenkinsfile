@@ -30,24 +30,28 @@ pipeline {
             steps {
                 script {
                     sh '''
+                        mkdir -p ${WORKSPACE}/zap
+                        chmod 777 ${WORKSPACE}/zap
+
                         docker rm -f zap-scan || true
-                        docker run -d --name zap-scan --network=host \
-                          -v ${WORKSPACE}:/zap/wrk:rw \
-                          -t ${ZAP_IMAGE} \
-                          zap.sh -daemon -port 9090 \
-                          -dir /zap/wrk/.zap_home \
+
+                        docker run -d \
+                          --user $(id -u):$(id -g) \
+                          --name zap-scan \
+                          --network=host \
+                          -p 9090:9090 \
+                          -v ${WORKSPACE}/zap:/zap/wrk:z \
+                          -e ZAP_AUTH_HEADER="X-ZAP-AuthHeader: 12345" \
+                          -i ${ZAP_IMAGE} zap.sh \
+                          -daemon \
+                          -host 0.0.0.0 \
+                          -port 9090 \
                           -config api.disablekey=true \
                           -config api.addrs.addr.name=.* \
                           -config api.addrs.addr.regex=true
 
-                        echo "Waiting for ZAP to be ready..."
-                        for i in {1..30}; do
-                            if curl -s http://localhost:9090/JSON/core/view/version/ > /dev/null; then
-                                echo "ZAP is ready"
-                                break
-                            fi
-                            sleep 2
-                        done
+                        echo "Waiting for ZAP to initialize..."
+                        sleep 30
                     '''
                 }
             }
@@ -61,22 +65,6 @@ pipeline {
                         docker exec zap-scan curl -s -X POST \
                             "http://localhost:9090/JSON/automation/action/runPlan/?fileName=/zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml"
                     '''
-                }
-            }
-        }
-
-        stage('Archive Reports') {
-            steps {
-                script {
-                    // Report filenames should match YAML config
-                    archiveArtifacts artifacts: 'html_report.html, xml_report.xml', allowEmptyArchive: false
-                    publishHTML target: [
-                        reportDir: '${WORKSPACE}',
-                        reportFiles: 'html_report.html',
-                        reportName: 'ZAP HTML Report',
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true
-                    ]
                 }
             }
         }
