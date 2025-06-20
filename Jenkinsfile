@@ -36,17 +36,15 @@ pipeline {
             steps {
                 script {
                     sh """
-                        docker rm -f zap-scan || true
-                        docker run -d --name zap-scan --network=host \
-                          -v ${WORKSPACE}:/zap/wrk:rw \
-                          -t ${ZAP_IMAGE} \
-                          zap.sh -daemon -port 9090 \
-                          -dir /zap/wrk/.zap_home \
-                          -config api.disablekey=true \
-                          -config api.addrs.addr.name=.* \
-                          -config api.addrs.addr.regex=true
-                    """
-
+                          docker run -d --name zap-scan --network=host \
+                            -v ${WORKSPACE}:/zap/wrk:rw \
+                            -t ${ZAP_IMAGE} \
+                            zap.sh -daemon -port 9090 \
+                            -dir /zap/wrk/.zap_home \
+                            -config api.disablekey=true \
+                            -config api.addrs.addr.name=.* \
+                            -config api.addrs.addr.regex=true
+                        """
                     sh '''
                         echo "Waiting for ZAP daemon to be ready..."
                         for i in {1..30}; do
