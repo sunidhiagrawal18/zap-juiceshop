@@ -52,6 +52,12 @@ pipeline {
 
                         echo "Waiting for ZAP to initialize..."
                         sleep 30
+                        sleep 30
+                        sleep 30
+                        sleep 30
+                        sleep 30
+                        sleep 30
+                        sleep 30
                     '''
                 }
             }
