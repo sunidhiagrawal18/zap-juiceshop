@@ -43,12 +43,6 @@ jobs:
       user: "test-user"
       maxDuration: 30
 
-  - type: "ajaxSpider"
-    parameters:
-      context: "JuiceShop-Heroku"
-      user: "test-user"
-      maxDuration: 10
-
   - type: "activeScan"
     parameters:
       context: "JuiceShop-Heroku"
