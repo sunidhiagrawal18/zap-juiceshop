@@ -32,53 +32,13 @@ pipeline {
             }
         }
         
-        stage('Run ZAP Scan') {
+        stage('Prepare Scripts') {
             steps {
                 script {
-                    writeFile file: "${WORKSPACE}/auth_plan.yaml", text: """
-env:
-  contexts:
-    - name: "JuiceShop-Auth"
-      urls: ["http://juiceshop:3000"]
-      includePaths: ["http://juiceshop:3000/.*"]
-      authentication:
-        method: "script"
-        parameters:
-          script: "JuiceShopAuth.js"
-          scriptEngine: "ECMAScript"
-      sessionManagement:
-        method: "script"
-        parameters:
-          script: "JuiceShopAuth.js"
-          scriptEngine: "ECMAScript"
-
-jobs:
-  - type: "spider"
-    parameters:
-      context: "JuiceShop-Auth"
-      maxDuration: 5
-
-  - type: "script"
-    parameters:
-      action: "add"
-      type: "httpsender"
-      engine: "ECMAScript"
-      name: "JuiceShopAuth.js"
-      file: "/zap/wrk/scripts/JuiceShopAuth.js"
-
-  - type: "activeScan"
-    parameters:
-      context: "JuiceShop-Auth"
-      scanPolicyName: "Default Policy"
-      threadPerHost: 5
-      maxScanDurationInMins: 15
-      delayInMs: 1000
-
-  - type: "report"
-    parameters:
-      template: "traditional-html"
-      reportFile: "/zap/wrk/report.html"
-"""
+                    // Create scripts directory
+                    sh 'mkdir -p ${WORKSPACE}/scripts'
+                    
+                    // Create authentication script
                     writeFile file: "${WORKSPACE}/scripts/JuiceShopAuth.js", text: """
 function authenticate(helper, params, credentials) {
     var loginUrl = 'http://juiceshop:3000/rest/user/login';
@@ -86,8 +46,7 @@ function authenticate(helper, params, credentials) {
     request.getRequestHeader().setURI(new java.net.URI(loginUrl, false));
     request.getRequestHeader().setMethod('POST');
     request.getRequestHeader().setHeader('Content-Type', 'application/json');
-    request.setRequestBody('{"email":"' + credentials.getParam('username') + 
-                         '","password":"' + credentials.getParam('password') + '"}');
+    request.setRequestBody('{"email":"admin@juice-sh.op","password":"admin123"}');
     helper.sendAndReceive(request);
     var response = JSON.parse(request.getResponseBody().toString());
     return response.authentication.token;
@@ -105,8 +64,58 @@ function getCredentialsParamsNames() {
     return ['username', 'password'];
 }
 """
+                }
+            }
+        }
+        
+        stage('Run ZAP Scan') {
+            steps {
+                script {
+                    writeFile file: "${WORKSPACE}/auth_plan.yaml", text: """
+env:
+  contexts:
+    - name: "JuiceShop-Auth"
+      urls: ["http://juiceshop:3000"]
+      includePaths: ["http://juiceshop:3000/.*"]
+      authentication:
+        method: "script"
+        parameters:
+          script: "JuiceShopAuth.js"
+          scriptEngine: "ECMAScript"
+      users:
+        - name: "admin"
+          credentials:
+            username: "admin@juice-sh.op"
+            password: "admin123"
+
+jobs:
+  - type: "script"
+    parameters:
+      action: "add"
+      type: "authentication"
+      engine: "ECMAScript"
+      name: "JuiceShopAuth.js"
+      file: "/zap/wrk/scripts/JuiceShopAuth.js"
+
+  - type: "spider"
+    parameters:
+      context: "JuiceShop-Auth"
+      maxDuration: 5
+
+  - type: "activeScan"
+    parameters:
+      context: "JuiceShop-Auth"
+      policy: "Default"
+      threadPerHost: 3
+      maxScanDurationInMins: 15
+      delayInMs: 1000
+
+  - type: "report"
+    parameters:
+      template: "traditional-html"
+      reportFile: "/zap/wrk/report.html"
+"""
                     sh """
-                    mkdir -p ${WORKSPACE}/scripts
                     docker rm -f zap-scan || true
                     docker run --rm --name zap-scan \
                     --network ${JUICE_SHOP_NETWORK} \
@@ -115,7 +124,7 @@ function getCredentialsParamsNames() {
                     -t ${ZAP_IMAGE} zap.sh -cmd \
                     -port ${ZAP_PORT} \
                     -config api.disablekey=true \
-                    -config scanner.threadPerHost=5 \
+                    -config scanner.threadPerHost=3 \
                     -config scanner.delayInMs=1000 \
                     -autorun /zap/wrk/auth_plan.yaml
                     """
