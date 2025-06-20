@@ -1,61 +1,74 @@
 pipeline {
     agent any
-
+    
     environment {
         ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
-        JUICESHOP_IMAGE = 'bkimminich/juice-shop'
-        GITHUB_REPO = 'https://github.com/sunidhiagrawal18/zap-juiceshop.git'
-        JUICESHOP_PORT = '3000'
+        TARGET_URL = 'https://juice-shop.herokuapp.com'
     }
-
+    
     stages {
-        stage('Checkout') {
+        stage('Prepare Workspace') {
             steps {
-                git branch: 'main',
-                    url: "${GITHUB_REPO}",
-                    credentialsId: 'github-credentials'
+                sh '''
+                    mkdir -p ${WORKSPACE}/plans ${WORKSPACE}/reports
+                    chmod -R 777 ${WORKSPACE}
+                '''
+                // Copy your plan file or create it here
+                writeFile file: "${WORKSPACE}/plans/juiceshop_heroku_plan.yaml", text: """
+env:
+  contexts:
+    - name: "JuiceShop-Heroku"
+      urls:
+        - "${TARGET_URL}"
+      includePaths:
+        - "${TARGET_URL}/.*"
+      authentication:
+        type: "form"
+        parameters:
+          loginUrl: "${TARGET_URL}/#/login"
+          loginRequestData: "email={%username%}&password={%password%}&submit="
+      users:
+        - name: "test-user"
+          credentials:
+            username: "admin@juice-sh.op"
+            password: "admin123"
+
+jobs:
+  - name: "spider"
+    type: "spider"
+    parameters:
+      maxDuration: 30
+
+  - name: "active-scan"
+    type: "activeScan"
+    parameters:
+      context: "JuiceShop-Heroku"
+      policy: "Default Policy"
+      maxRuleDurationInMins: 10
+      maxScanDurationInMins: 60
+
+  - name: "report"
+    type: "report"
+    parameters:
+      template: "traditional-html"
+      reportFile: "/zap/wrk/reports/juiceshop-heroku-report.html"
+      reportDir: "/zap/wrk/reports"
+      reportTitle: "OWASP ZAP Juice Shop Heroku Scan"
+"""
             }
         }
-
-        stage('Start JuiceShop') {
+        
+        stage('Run ZAP Scan') {
             steps {
                 script {
-                    sh "docker run -d --name juiceshop -p ${JUICESHOP_PORT}:3000 --rm ${JUICESHOP_IMAGE}"
-                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} > /dev/null; do sleep 1; done'
-                }
-            }
-        }
-
-        stage('Start ZAP Daemon') {
-            steps {
-                script {
-                    sh '''
-                          mkdir -p ${WORKSPACE}/.zap_home
-                          chmod -R 777 ${WORKSPACE}
-                        
-                          docker run -d --name zap-scan --network=host \
-                            --user $(id -u):$(id -g) \
-                            -v ${WORKSPACE}:/zap/wrk:rw \
-                            -e HOME=/zap/wrk/.zap_home \
-                            ${ZAP_IMAGE} zap.sh \
-                            -daemon -dir /zap/wrk/.zap_home \
-                            -host 0.0.0.0 -port 9090 \
-                            -config api.disablekey=true \
-                            -config api.addrs.addr.name=.* \
-                            -config api.addrs.addr.regex=true
-                        '''
-                }
-            }
-        }
-
-        stage('Run ZAP Automation Plan') {
-            steps {
-                script {
-                    sh '''
-                        echo "Triggering ZAP scan plan via API..."
-                        docker exec zap-scan curl -s -X POST \
-                            "http://localhost:9090/JSON/automation/action/runPlan/?fileName=/zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml"
-                    '''
+                    sh """
+                        docker rm -f zap-scan || true
+                        docker run --name zap-scan --network="host" \
+                          -v ${WORKSPACE}:/zap/wrk:rw \
+                          -t ${ZAP_IMAGE} \
+                          zap.sh -cmd -port 9090 -config api.disablekey=true \
+                          -autorun /zap/wrk/plans/juiceshop_heroku_plan.yaml
+                    """
                 }
             }
         }
@@ -63,8 +76,9 @@ pipeline {
 
     post {
         always {
+            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}'
             sh 'docker stop zap-scan || true'
-            sh 'docker stop juiceshop || true'
+            archiveArtifacts artifacts: 'reports/*.html', allowEmptyArchive: true
         }
     }
 }
