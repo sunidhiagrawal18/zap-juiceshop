@@ -47,20 +47,17 @@ env:
           loginUrl: "http://juiceshop:3000/rest/user/login"
           loginRequestData: '{"email":"admin@juice-sh.op","password":"admin123"}'
           authToken: "authentication.token"
-          verification:
-            loggedInIndicator: "user/.*"
+          loggedInIndicator: ".*user/.*"
 
 jobs:
   - type: "spider"
     parameters:
       context: "JuiceShop-Auth"
-      user: "admin"
-      
+
   - type: "activeScan"
     parameters:
       context: "JuiceShop-Auth"
-      user: "admin"
-      scanPolicyName: "Default Policy"
+      policy: "Default Policy"
       maxScanDurationInMins: 20
 
   - type: "report"
