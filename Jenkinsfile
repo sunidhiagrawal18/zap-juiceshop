@@ -30,35 +30,20 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        mkdir -p ${WORKSPACE}/zap
-                        chmod 777 ${WORKSPACE}/zap
-
-                        docker rm -f zap-scan || true
-
-                        docker run -d \
-                          --user $(id -u):$(id -g) \
-                          --name zap-scan \
-                          --network=host \
-                          -p 9090:9090 \
-                          -v ${WORKSPACE}/zap:/zap/wrk:z \
-                          -e ZAP_AUTH_HEADER="X-ZAP-AuthHeader: 12345" \
-                          -i ${ZAP_IMAGE} zap.sh \
-                          -daemon \
-                          -host 0.0.0.0 \
-                          -port 9090 \
-                          -config api.disablekey=true \
-                          -config api.addrs.addr.name=.* \
-                          -config api.addrs.addr.regex=true
-
-                        echo "Waiting for ZAP to initialize..."
-                        sleep 30
-                        sleep 30
-                        sleep 30
-                        sleep 30
-                        sleep 30
-                        sleep 30
-                        sleep 30
-                    '''
+                          mkdir -p ${WORKSPACE}/.zap_home
+                          chmod -R 777 ${WORKSPACE}
+                        
+                          docker run -d --name zap-scan --network=host \
+                            --user $(id -u):$(id -g) \
+                            -v ${WORKSPACE}:/zap/wrk:rw \
+                            -e HOME=/zap/wrk/.zap_home \
+                            ${ZAP_IMAGE} zap.sh \
+                            -daemon -dir /zap/wrk/.zap_home \
+                            -host 0.0.0.0 -port 9090 \
+                            -config api.disablekey=true \
+                            -config api.addrs.addr.name=.* \
+                            -config api.addrs.addr.regex=true
+                        '''
                 }
             }
         }
