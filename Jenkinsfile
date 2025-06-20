@@ -21,63 +21,63 @@ pipeline {
             steps {
                 script {
                     sh "docker run -d --name juiceshop -p ${JUICESHOP_PORT}:3000 --rm ${JUICESHOP_IMAGE}"
-                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} > /dev/null; do sleep 2; echo "Waiting for JuiceShop..."; done'
+                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} > /dev/null; do sleep 1; done'
                 }
             }
         }
 
-        stage('Ensure Writable Workspace') {
-            steps {
-                sh 'chmod -R 777 ${WORKSPACE} || true'
-            }
-        }
-
-        stage('Start ZAP in Daemon Mode') {
+        stage('Start ZAP Daemon') {
             steps {
                 script {
                     sh '''
                         docker rm -f zap-scan || true
                         docker run -d --name zap-scan --network=host \
                           -v ${WORKSPACE}:/zap/wrk:rw \
-                          -t ghcr.io/zaproxy/zaproxy:stable \
+                          -t ${ZAP_IMAGE} \
                           zap.sh -daemon -port 9090 \
-                          -config api.disablekey=true
-                        '''
+                          -dir /zap/wrk/.zap_home \
+                          -config api.disablekey=true \
+                          -config api.addrs.addr.name=.* \
+                          -config api.addrs.addr.regex=true
 
-                    sh '''
-                        echo "Waiting for ZAP daemon to be ready..."
+                        echo "Waiting for ZAP to be ready..."
                         for i in {1..30}; do
-                          if curl -s http://localhost:9090/JSON/core/view/version/ > /dev/null; then
-                            echo "ZAP is ready!"
-                            break
-                          fi
-                          sleep 2
+                            if curl -s http://localhost:9090/JSON/core/view/version/ > /dev/null; then
+                                echo "ZAP is ready"
+                                break
+                            fi
+                            sleep 2
                         done
                     '''
                 }
             }
         }
 
-        stage('Run ZAP Scan') {
+        stage('Run ZAP Automation Plan') {
             steps {
                 script {
-                    sh 'docker exec zap-scan zap.sh -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml'
+                    sh '''
+                        echo "Triggering ZAP scan plan via API..."
+                        docker exec zap-scan curl -s -X POST \
+                            "http://localhost:9090/JSON/automation/action/runPlan/?fileName=/zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml"
+                    '''
                 }
             }
         }
 
-        stage('Archive Report') {
+        stage('Archive Reports') {
             steps {
-                archiveArtifacts artifacts: 'html_report.html, xml_report.xml', allowEmptyArchive: true
-
-                publishHTML target: [
-                    reportDir: "${WORKSPACE}",
-                    reportFiles: 'html_report.html',
-                    reportName: 'ZAP HTML Report',
-                    allowMissing: true,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true
-                ]
+                script {
+                    // Report filenames should match YAML config
+                    archiveArtifacts artifacts: 'html_report.html, xml_report.xml', allowEmptyArchive: false
+                    publishHTML target: [
+                        reportDir: '${WORKSPACE}',
+                        reportFiles: 'html_report.html',
+                        reportName: 'ZAP HTML Report',
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true
+                    ]
+                }
             }
         }
     }
@@ -85,10 +85,7 @@ pipeline {
     post {
         always {
             sh 'docker stop zap-scan || true'
-            sh 'docker rm -f zap-scan || true'
             sh 'docker stop juiceshop || true'
-            // Reset workspace ownership to avoid wipeout errors
-            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE} || true'
         }
     }
 }
