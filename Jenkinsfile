@@ -18,7 +18,7 @@ pipeline {
                     -config scanner.threadPerHost=8 \
                     -config spider.maxDuration=10 \
                     -config scan.maxDuration=30 \
-                    -autorun /zap/wrk/auth_scan.yaml
+                    -autorun /zap/wrk/plans/auth_scan.yaml
                     """
                 }
             }
