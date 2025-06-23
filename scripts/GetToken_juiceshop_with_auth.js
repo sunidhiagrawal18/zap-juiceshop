@@ -24,7 +24,7 @@ function sendingRequest(msg, initiator, helper) {
         // Set request body
         var requestBody = JSON.stringify({
             email: "admin@juice-sh.op",
-            password: "admin123"
+            password: "admin"
         });
         loginMsg.getRequestBody().setBody(requestBody);
         
