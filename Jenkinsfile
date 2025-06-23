@@ -30,18 +30,32 @@ pipeline {
         stage('Run ZAP Scan') {
             steps {
                 script {
-                    sh """
+                    sh '''
                         docker rm -f zap-scan || true
                         docker run --name zap-scan --network="host" \
                           -v ${WORKSPACE}:/zap/wrk:rw \
                           -t ${ZAP_IMAGE} \
                           zap.sh -daemon -host 0.0.0.0 -port 9090 -config api.disablekey=true \
-                          -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
-                    """
+                          -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml &
+        
+                        # Wait for ZAP to write logs (avoid race condition)
+                        sleep 10
+        
+                        # Poll logs until automation plan completes
+                        while ! docker logs zap-scan 2>&1 | grep -q "Automation plan succeeded!"; do
+                          echo "Waiting for ZAP scan to finish..."
+                          sleep 5
+                        done
+        
+                        echo "ZAP scan completed!"
+        
+                        # Stop and remove the container
+                        docker stop zap-scan
+                        docker rm zap-scan
+                    '''
                 }
             }
-        }
-    
+        }    
 }
 
     post {
