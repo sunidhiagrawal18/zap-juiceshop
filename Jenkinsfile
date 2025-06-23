@@ -36,7 +36,7 @@ pipeline {
                         docker run --name zap-scan --network="host" \
                             -v ${WORKSPACE}:/zap/wrk:rw \
                             -t ${ZAP_IMAGE} \
-                             zap.sh -cmd \
+                             zap.sh -cmd -port 9090 \
                             -quickurl ${TARGET_URL} \
                             -quickprogress \
                             -config scanner.threadPerHost=10 \
