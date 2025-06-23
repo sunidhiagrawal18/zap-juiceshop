@@ -1,113 +1,55 @@
 pipeline {
     agent any
+    
     environment {
-        ZAP_IMAGE = 'owasp/zap2docker-stable'
-        JUICE_SHOP_URL = 'https://preview.owasp-juice.shop'
-        ZAP_PORT = '8090'  // Using non-default port
+        ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
+        JUICESHOP_IMAGE = 'bkimminich/juice-shop'
+        GITHUB_REPO = 'https://github.com/sunidhiagrawal18/zap-juiceshop.git'
+        JUICESHOP_PORT = '3000'
     }
-    stages {
-        stage('Start ZAP in Daemon Mode') {
+    
+    stages {     
+        stage('Start JuiceShop') {
             steps {
                 script {
-                    sh """
-                    docker run -d --name zap-daemon \
-                    -p ${ZAP_PORT}:${ZAP_PORT} \
-                    -v ${WORKSPACE}:/zap/wrk:rw \
-                    -e ZAP_JVM_OPTIONS="-Xmx2g -Dzap.script.browserId=firefox-headless" \
-                    -t ${ZAP_IMAGE} zap.sh -cmd \
-                    -port ${ZAP_PORT} \
-                    -config api.disablekey=true \
-                    -config connection.timeoutInSecs=60
-                    """
-                    // Wait for ZAP to initialize
-                    sh """
-                    while ! curl -s http://localhost:${ZAP_PORT} >/dev/null; do
-                        sleep 5
-                        echo "Waiting for ZAP to start..."
-                    done
-                    """
+                    sh "docker run -d --name juiceshop -p ${JUICESHOP_PORT}:3000 --rm ${JUICESHOP_IMAGE}"
+                    sh 'while ! curl -s http://localhost:${JUICESHOP_PORT} >/dev/null; do sleep 1; echo "Waiting for JuiceShop to start..."; done'
+                    echo "JuiceShop is now running and ready for testing"
                 }
             }
         }
 
-        stage('Run Browser Authentication Scan') {
+        stage('Debug Workspace Permissions') {
+            steps {
+                sh '''
+                    chmod -R 777 ${WORKSPACE} || true
+                '''
+            }
+        }
+        
+        stage('Run ZAP Scan') {
             steps {
                 script {
-                    writeFile file: "${WORKSPACE}/browser_auth_scan.yaml", text: """
-env:
-  contexts:
-    - name: "JuiceShop"
-      urls: ["${JUICE_SHOP_URL}"]
-      includePaths: ["${JUICE_SHOP_URL}/.*"]
-      authentication:
-        method: "browser"
-        parameters:
-          loginPageUrl: "${JUICE_SHOP_URL}/#/login"
-          browserId: "firefox-headless"
-          usernameField: "email"
-          passwordField: "password"
-          submitField: "loginButton"
-          loginPageWait: 15
-          postWait: 5
-      verification:
-        method: "response"
-        loggedInIndicator: "logout"
-      users:
-        - name: "test@test.com"
-          credentials:
-            username: "test@test.com"
-            password: "test123"
-
-jobs:
-  - type: "spider"
-    parameters:
-      context: "JuiceShop"
-      user: "test@test.com"
-      maxDuration: 10
-
-  - type: "passiveScan"
-    parameters:
-      maxDuration: 5
-
-  - type: "activeScan"
-    parameters:
-      context: "JuiceShop"
-      user: "test@test.com"
-      policy: "Default"
-      maxScanDurationInMins: 30
-      threadPerHost: 2
-      delayInMs: 1000
-"""
-                    // Execute the scan via ZAP API
                     sh """
-                    docker exec zap-daemon \
-                    curl -X POST "http://localhost:${ZAP_PORT}/JSON/automation/action/runPlan/" \
-                    -H "Content-Type: application/json" \
-                    --data-binary @/zap/wrk/browser_auth_scan.yaml
-                    """
-                    
-                    // Monitor scan progress
-                    sh """
-                    docker exec zap-daemon \
-                    curl -s "http://localhost:${ZAP_PORT}/JSON/core/view/version" || true
+                        docker rm -f zap-scan || true
+                        docker run --name zap-scan --network="host" \
+                          -v ${WORKSPACE}:/zap/wrk:rw \
+                          -t ${ZAP_IMAGE} \
+                          zap.sh -daemon -host 0.0.0.0 -port 9090 -config api.disablekey=true \
+                          -autorun /zap/wrk/plans/owasp_juiceshop_plan_docker_with_auth.yaml
                     """
                 }
             }
         }
-    }
+    
+}
+
     post {
         always {
-            // Generate and retrieve report
-            sh """
-            docker exec zap-daemon \
-            curl -X GET "http://localhost:${ZAP_PORT}/OTHER/core/other/htmlreport/" \
-            -o /zap/wrk/report.html
-            """
-            
-            // Cleanup
-            sh 'docker stop zap-daemon || true'
-            sh 'docker rm -f zap-daemon || true'
-            archiveArtifacts artifacts: 'report.html'
+            // Stop containers (in case they’re still running)
+            sh 'sudo -n chown -R jenkins:jenkins ${WORKSPACE}'
+            sh 'docker stop zap-scan || true'
+            sh 'docker stop juiceshop || true'
         }
     }
 }
