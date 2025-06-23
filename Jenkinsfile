@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         ZAP_IMAGE = 'ghcr.io/zaproxy/zaproxy:stable'
-        TARGET_URL = 'https://juice-shop.herokuapp.com'
+        TARGET_URL = 'https://dcodept.unilever.com/'
     }
     stages {
         stage('Quick Scan') {
