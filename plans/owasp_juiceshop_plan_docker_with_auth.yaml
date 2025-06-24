@@ -49,6 +49,28 @@ jobs:
     engine: "Oracle Nashorn"
     name: "GetToken"
     file: "/zap/wrk/scripts/GetToken_juiceshop_with_auth.js"
+- type: passiveScan-config
+  parameters: {}
+- type: spider
+  parameters: {}
+  tests:
+  - name: At least 100 URLs found
+    type: stats
+    onFail: INFO
+    statistic: automation.spider.urls.added
+    operator: '>='
+    value: 100
+- type: spiderAjax
+  parameters: {}
+  tests:
+  - name: At least 100 URLs found
+    type: stats
+    onFail: INFO
+    statistic: spiderAjax.urls.added
+    operator: '>='
+    value: 100
+- type: passiveScan-wait
+  parameters: {}
 - name: "activeScan"
   type: "activeScan"
   policyDefinition:
